@@ -644,6 +644,21 @@ def process_telegram_commands():
         log("خطا در پردازش کامندهای تلگرام: " + str(e))
 
 
+def send_photo(caption, img_path):
+    with open(img_path, "rb") as f:
+        r = request_with_retry(
+            "POST",
+            TG_BASE + "/sendPhoto",
+            data={"chat_id": CHANNEL_ID, "caption": caption, "parse_mode": "HTML"},
+            files={"photo": ("news.jpg", f, "image/jpeg")},
+            proxies=TG_PROXIES,
+            timeout=60,
+        )
+    if r.status_code != 200:
+        raise RuntimeError("Telegram send failed: " + r.text)
+    return r.json()
+
+
 def send_plain(chat_id, text):
     try:
         request_with_retry("GET", TG_BASE + "/sendMessage", params={"chat_id": chat_id, "text": text, "parse_mode": "HTML"}, proxies=TG_PROXIES, timeout=25)
