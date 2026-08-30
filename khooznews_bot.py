@@ -50,6 +50,9 @@ else:
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
+# کلید API Gemini (برای بازنویسی هوشمند تیتر و متن)
+GEMINI_KEY = os.environ.get("GEMINI_KEY") or ""
+
 HEADERS = {"User-Agent": USER_AGENT, "Accept-Language": "fa-IR,fa;q=0.9"}
 TG_PROXIES = {"http": TELEGRAM_PROXY, "https": TELEGRAM_PROXY} if TELEGRAM_PROXY else None
 TG_BASE = "https://api.telegram.org/bot" + TELEGRAM_TOKEN
@@ -374,18 +377,72 @@ def rewrite_body(paras, max_sentences=6):
     return " ".join(result)
 
 
+def gemini_rewrite(title, text):
+    """بازنویسی تیتر و متن با هوش مصنوعی Gemini (جنجالی + خلاصه)"""
+    if not GEMINI_KEY:
+        return None
+    try:
+        body_preview = text[:2000] if text else ""
+        prompt = (
+            "تو یک خبرنگار ورزشی خوزستانی هستی. خبر زیر را بازنویسی کن:\n\n"
+            "--- خبر اصلی ---\n"
+            "تیتر: " + (title or "") + "\n"
+            "متن: " + body_preview + "\n\n"
+            "--- خواسته‌ها ---\n"
+            "۱. تیتر جدید جنجالی، انتقادی و گیرا بنویس (کاملاً متفاوت از تیتر اصلی)\n"
+            "۲. متن خبر را در ۳-۵ جمله خلاصه کن، انگار خودت گزارش رو نوشتی (نه کپی)\n"
+            "۳. هیچ اشاره‌ای به خبرگزاری یا منبع نکن\n"
+            "۴. به صورت گزارشی روان و پیوسته بنویس، اطلاعات اصلی (تیم‌ها، نتایج، زمان) حتماً حفظ بشه\n"
+            "۵. تیتر و متن را به فارسی روان بنویس\n\n"
+            "فرمت خروجی دقیقاً:\n"
+            "تیتر: <تیتر جدید>\n"
+            "متن: <متن بازنویسی شده>"
+        )
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        r = request_with_retry("POST", url, params={"key": GEMINI_KEY}, json=payload,
+                                proxies=TG_PROXIES, timeout=60)
+        if r.status_code != 200:
+            log("Gemini خطا: " + str(r.status_code) + " " + r.text[:200])
+            return None
+        data = r.json()
+        resp = data["candidates"][0]["content"]["parts"][0]["text"]
+        log("Gemini پاسخ: " + resp[:150])
+        # استخراج تیتر و متن
+        new_title = ""
+        new_body = ""
+        for line in resp.splitlines():
+            if line.startswith("تیتر:"):
+                new_title = line.replace("تیتر:", "", 1).strip()
+            elif line.startswith("متن:"):
+                new_body = line.replace("متن:", "", 1).strip()
+        if new_title or new_body:
+            return {"title": new_title, "body": new_body}
+        return None
+    except Exception as e:
+        log("Gemini خطا: " + str(e))
+        return None
+
+
 def build_report(item, article):
-    title = make_catchy_title(article.get("title") or item["title"])
+    orig_title = article.get("title") or item["title"]
     paras = [p for p in (article.get("paras") or []) if p]
     body = rewrite_body(paras)
     if not body:
         body = remove_isna(item.get("desc") or "")
+
+    # بازنویسی با هوش مصنوعی (اگر کلید Gemini موجود باشد)
+    ai = gemini_rewrite(orig_title, body) if GEMINI_KEY else None
+    if ai and (ai.get("title") or ai.get("body")):
+        title = make_catchy_title(ai.get("title") or orig_title)
+        body = ai.get("body") or body
+    else:
+        title = make_catchy_title(orig_title)
+
     report = (title + "\n\n" + body) if title else body
     report = remove_isna(report)
     lines = report.splitlines()
     if len(lines) > MAX_CAPTION_LINES:
-        # سطرهای اضافی را کوتاه کن
-        body_lines = body.splitlines()
         while len(report.splitlines()) > MAX_CAPTION_LINES and len(body) > 40:
             body = body[:body.rfind(" ")]
             report = (title + "\n\n" + body) if title else body
