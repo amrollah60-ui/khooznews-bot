@@ -315,6 +315,35 @@ def parse_footballi_items(html, cfg):
     return list(seen.values())
 
 
+def parse_tg_channel_items(html, cfg):
+    """پارسر کانال تلگرام از طریق نمایش وب عمومی (t.me/s/...)"""
+    ch = cfg.get("channel", "")
+    items = []
+    seen = {}
+    for part in re.split(r'<div class="tgme_widget_message_wrap', html)[1:]:
+        m = re.search(r'data-post="[^"]+/(\d+)"', part)
+        if not m:
+            continue
+        nid = m.group(1)
+        tm = re.search(r'<div class="tgme_widget_message_text[^"]*"[^>]*>(.*?)</div>', part, re.S)
+        text = re.sub(r"<[^>]+>", " ", tm.group(1)) if tm else ""
+        text = re.sub(r"\s+", " ", text).strip()
+        if not text:
+            continue
+        im = re.search(r'<img[^>]*src="(https://cdn[^"]+)"', part)
+        img = im.group(1) if im else ""
+        title = text[:80]
+        if nid in seen:
+            continue
+        seen[nid] = {"id": nid, "title": title, "url": "https://t.me/%s/%s" % (ch, nid), "img": img, "desc": text}
+    return list(seen.values())
+
+
+def fetch_tg_channel(url, **kwargs):
+    """گرفتن صفحه وب عمومی کانال تلگرام - از طریق پروکسی تلگرام"""
+    return request_with_retry("GET", url, headers=HEADERS, timeout=30, **kwargs)
+
+
 PARSERS = {
     "isna": parse_isna_items,
     "khouznews": parse_khouznews_items,
@@ -324,6 +353,7 @@ PARSERS = {
     "volleyball": parse_volleyball_items,
     "iranbbf": parse_iranbbf_items,
     "footballi": parse_footballi_items,
+    "tg_channel": parse_tg_channel_items,
 }
 
 
@@ -719,7 +749,10 @@ def process_source(source, sent, send=True):
         return sent
     timeout = source.get("timeout", 30)
     max_retries = source.get("max_retries", MAX_RETRIES)
-    html = request_with_retry("GET", source["list_url"], headers=HEADERS, timeout=timeout, max_retries=max_retries)
+    # منابع کانال تلگرام باید از طریق پروکسی تلگرام بگیرن
+    use_proxy = source.get("use_tg_proxy", False)
+    proxies = TG_PROXIES if use_proxy else None
+    html = request_with_retry("GET", source["list_url"], headers=HEADERS, timeout=timeout, max_retries=max_retries, proxies=proxies)
     html.raise_for_status()
     items = parser(html.text, source)
     log("[%s] تعداد اخبار: %d" % (name, len(items)))
@@ -787,7 +820,9 @@ def main():
                         parser = PARSERS.get(parser_key)
                         if parser is None:
                             continue
-                        html = request_with_retry("GET", source["list_url"], headers=HEADERS, timeout=30)
+                        use_proxy = source.get("use_tg_proxy", False)
+                        proxies = TG_PROXIES if use_proxy else None
+                        html = request_with_retry("GET", source["list_url"], headers=HEADERS, timeout=30, proxies=proxies)
                         items = parser(html.text, source)
                         for it in items:
                             sent.append(name + ":" + it["id"])
