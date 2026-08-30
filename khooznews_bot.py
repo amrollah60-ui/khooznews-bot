@@ -91,7 +91,8 @@ def clean_html(s):
     s = re.sub(r"<[^>]+>", "", s or "")
     s = (s.replace("&nbsp;", " ").replace("&amp;", "&")
           .replace("&quot;", '"').replace("&#039;", "'").replace("&lt;", "<")
-          .replace("&gt;", ">"))
+          .replace("&gt;", ">").replace("&laquo;", "«").replace("&raquo;", "»")
+          .replace("&zwnj;", "").replace("&ndash;", "-").replace("&mdash;", "-"))
     s = re.sub(r"\s+", " ", s)
     return s.strip()
 
@@ -100,6 +101,8 @@ def remove_isna(text):
     text = re.sub(r"\(\s*ایسنا\s*\)", "", text)
     text = re.sub(r"به\s+گزارش\s+ایسنا\s*[،,]?\s*", "", text)
     text = re.sub(r"خبرنگار\s+ایسنا\s*[،,]?\s*", "", text)
+    # حذف عبارت‌های «به گزارش ...» برای خبرگزاری‌های مختلف
+    text = re.sub(r"به\s+گزارش\s+(پایگاه خبری|خبرگزاری|ایسنا|فارس|ایرنا|مهر|تسنیم|خوزنیوز|ورزش و جوانان)[^،;]{0,40}[،،]?\s*", "", text)
     text = text.replace("ایسنا", "")
     lines = [re.sub(r"[ \t]+", " ", ln).strip() for ln in text.splitlines()]
     text = "\n".join(ln for ln in lines if ln)
@@ -199,10 +202,40 @@ def parse_rss_items(xml, cfg):
     return items
 
 
+def parse_msy_items(html, cfg):
+    """استخراج اخبار از صفحه وزارت ورزش (بر اساس تب مشخص در config)"""
+    tab = cfg.get("tab")
+    items = []
+    if tab:
+        m = re.search(r"id=['\"]" + tab + r"['\"]", html)
+        if m:
+            start = m.start()
+            next_m = re.search(r"id=['\"](tab_\d+)['\"]", html[start + 10:])
+            end = start + 10 + next_m.start() if next_m else len(html)
+            seg = html[start:end]
+        else:
+            seg = html
+    else:
+        seg = html
+    seen = {}
+    for lm in re.finditer(
+            r'<a href="(https://khouzestan\.msy\.gov\.ir/fa/news/(\d+)-[^"]*\.html)"[^>]*title="([^"]*)"[^>]*>.*?</a>',
+            seg, re.S):
+        url, nid, title = lm.group(1), lm.group(2), lm.group(3).strip()
+        if not title or nid in seen:
+            continue
+        img_m = re.search(r'<img src="(https://khouzestan\.msy\.gov\.ir/fa/\.\./temporary/images/[^"]+)"', lm.group(0))
+        img = img_m.group(1) if img_m else ""
+        img = re.sub(r"/fa/\.\./", "/", img)
+        seen[nid] = {"id": nid, "title": title, "url": url, "img": img, "desc": title}
+    return list(seen.values())
+
+
 PARSERS = {
     "isna": parse_isna_items,
     "khouznews": parse_khouznews_items,
     "rss": parse_rss_items,
+    "msy": parse_msy_items,
 }
 
 
@@ -262,13 +295,29 @@ def fetch_article_http(url, fallback_title="", fallback_desc=""):
         r = request_with_retry("GET", url, headers=HEADERS, timeout=30)
         r.raise_for_status()
         html = r.text
-        m = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.S)
-        title = clean_html(m.group(1)) if m else fallback_title
-        im = re.search(r'<div class="item-text">(.*?)</div>', html, re.S)
-        if im:
-            block = im.group(1)
-        else:
-            block = html
+        # عنوان: اول og:title، بعد title (بدون اسم سایت)، بعد h1
+        title = ""
+        m = re.search(r'<meta property="og:title" content="([^"]+)"', html)
+        if m:
+            title = clean_html(m.group(1))
+        if not title:
+            m = re.search(r"<title>(.*?)</title>", html, re.S)
+            if m:
+                t = re.sub(r"^[^>]*::", "", m.group(1).strip())
+                title = clean_html(t)
+        if not title:
+            m = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.S)
+            if m:
+                title = clean_html(m.group(1))
+        if not title:
+            title = fallback_title
+        # متن خبر
+        block = html
+        for cls in ["sis-desc", "item-text", "sis-content-text", "newsbody", "item-body", "body"]:
+            im = re.search(r'class="' + cls + r'"(.*?)(?=<div class="|<footer|</article>|</body>)', html, re.S)
+            if im:
+                block = im.group(1)
+                break
         paras = []
         for pm in re.finditer(r"<p[^>]*>(.*?)</p>", block, re.S):
             t = clean_html(pm.group(1))
@@ -412,12 +461,6 @@ def gemini_rewrite(title, text):
         return None
 
 
-def make_header():
-    """هدر کادر آبی با نام کانال"""
-    bar = "🟦" * 18
-    return "%s\n<b>%s</b>\n%s" % (bar, html_escape(CHANNEL_NAME), bar)
-
-
 def build_report(item, article):
     orig_title = article.get("title") or item["title"]
     paras = [p for p in (article.get("paras") or []) if p]
@@ -463,78 +506,6 @@ def download_image(url, dst):
     with open(dst, "wb") as f:
         f.write(r.content)
     return dst
-
-
-def make_post_image(news_img=None, dst=None):
-    """ساخت تصویر نهایی: کادر آبی تمام‌عرض با نام کانال + تصویر خبر (اگه موجود باشد)
-    چون کپشن تلگرام رنگ پس‌زمینه ندارد، هدر به‌صورت تصویر ساخته می‌شود."""
-    try:
-        from PIL import Image, ImageDraw, ImageFont
-        import arabic_reshaper
-        from bidi.algorithm import get_display
-    except ImportError:
-        log("برای هدر تصویری نیاز به pillow/arabic-reshaper/python-bidi است")
-        return news_img
-
-    font_dir = os.path.join(BASE_DIR, "fonts")
-    header_font_path = os.path.join(font_dir, "header.ttf")
-    if not os.path.exists(header_font_path):
-        return news_img
-
-    W = 1080
-    HEADER_H = 170
-    BLUE = (20, 42, 90)          # آبی تیره
-    WHITE = (255, 255, 255)
-
-    bottom = None
-    if news_img and os.path.exists(news_img):
-        try:
-            bottom = Image.open(news_img).convert("RGB")
-            # مقیاس به عرض W
-            r = W / bottom.width
-            bottom = bottom.resize((W, int(bottom.height * r)))
-        except Exception as e:
-            log("خطا در باز کردن تصویر خبر: " + str(e))
-            bottom = None
-
-    H = HEADER_H + (bottom.height if bottom else 200)
-    canvas = Image.new("RGB", (W, H), (245, 245, 245))
-    draw = ImageDraw.Draw(canvas)
-
-    # کادر آبی تمام‌عرض
-    draw.rectangle([0, 0, W, HEADER_H], fill=BLUE)
-    try:
-        font = ImageFont.truetype(header_font_path, 56)
-        text = get_display(arabic_reshaper.reshape(CHANNEL_NAME))
-        bbox = draw.textbbox((0, 0), text, font=font)
-        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-        x = (W - tw) // 2 - bbox[0]
-        y = (HEADER_H - th) // 2 - bbox[1]
-        draw.text((x, y), text, font=font, fill=WHITE)
-    except Exception as e:
-        log("خطا در رسم متن هدر: " + str(e))
-
-    if bottom:
-        canvas.paste(bottom, (0, HEADER_H))
-
-    out = dst or os.path.join(BASE_DIR, "tmp_post.jpg")
-    canvas.save(out, "JPEG", quality=88)
-    return out
-
-
-def send_photo(caption, img_path):
-    with open(img_path, "rb") as f:
-        r = request_with_retry(
-            "POST",
-            TG_BASE + "/sendPhoto",
-            data={"chat_id": CHANNEL_ID, "caption": caption, "parse_mode": "HTML"},
-            files={"photo": ("news.jpg", f, "image/jpeg")},
-            proxies=TG_PROXIES,
-            timeout=60,
-        )
-    if r.status_code != 200:
-        raise RuntimeError("Telegram send failed: " + r.text)
-    return r.json()
 
 
 # ======================================================================
@@ -653,7 +624,6 @@ def process_source(source, sent, send=True):
     new_items.sort(key=lambda it: int(it["id"]))
     fetcher = ARTICLE_FETCHERS.get(source.get("article_method", "http"))
     tmp_news = os.path.join(BASE_DIR, "tmp_news.jpg")
-    tmp_post = os.path.join(BASE_DIR, "tmp_post.jpg")
     for it in new_items:
         try:
             log("[%s] خبر جدید: %s" % (name, it["title"]))
@@ -669,12 +639,10 @@ def process_source(source, sent, send=True):
                         dl_img = tmp_news
                     except Exception as e:
                         log("[%s] خطا در دانلود تصویر خبر: %s" % (name, str(e)))
-                # ساخت تصویر نهایی (هدر آبی + تصویر خبر)
-                post_img = make_post_image(news_img=dl_img, dst=tmp_post)
-                if post_img:
-                    send_photo(report, post_img)
+                if dl_img:
+                    send_photo(report, dl_img)
                 else:
-                    send_photo(report, dl_img) if dl_img else send_plain(CHANNEL_ID, report)
+                    send_plain(CHANNEL_ID, report)
                 log("[%s] ارسال شد: %s" % (name, it["id"]))
             else:
                 log("[%s] DRY-RUN (بدون ارسال):\n%s" % (name, report))
