@@ -79,6 +79,22 @@
       "list_url": "https://www.iranbbf.ir/News/Ostan?id=21",
       "base_url": "https://www.iranbbf.ir",
       "article_method": "http"
+    },
+    {
+      "name": "mehr",
+      "title": "خبرگزاری مهر - ورزش خوزستان",
+      "type": "rss",
+      "list_url": "https://www.mehrnews.com/rss?kw=%D9%88%D8%B1%D8%B2%D8%B4+%D8%AE%D9%88%D8%B2%D8%B3%D8%AA%D8%A7%D9%86",
+      "base_url": "https://www.mehrnews.com",
+      "article_method": "http"
+    },
+    {
+      "name": "footballi",
+      "title": "هیئت فوتبال خوزستان",
+      "type": "footballi",
+      "list_url": "https://footballi.net/news/tag/%D9%87%DB%8C%D8%A6%D8%AA-%D9%81%D9%88%D8%AA%D8%A8%D8%A7%D9%84-%D8%AE%D9%88%D8%B2%D8%B3%D8%AA%D8%A7%D9%86",
+      "base_url": "https://footballi.net",
+      "article_method": "http"
     }
   ]
 }
