@@ -301,37 +301,95 @@ def truncate_text(text, limit=MAX_PARA_LEN):
     return cut.strip()
 
 
+def title_emoji(text):
+    """انتخاب ایموجی مناسب بر اساس محتوای خبر"""
+    neg = ["بحران", "شکست", "حسرت", "انتقاد", "غایب", "منحل", "ویرانی", "نگران", "خطر",
+           "درگیری", "حاشیه", "مصدم", "شکایت", "بحران‌زده", "عذرخواهی", "مشکل"]
+    pos = ["قهرمان", "مدال", "طلایی", "طلا", "پیروزی", "برد", "افتخار", "موفق", "درخشش", "نقره", "برنز"]
+    for w in neg:
+        if w in text:
+            return "🚨"
+    for w in pos:
+        if w in text:
+            return "🏆"
+    sports = {"فوتبال": "⚽", "فولاد": "⚽", "نفت": "⚽", "استقلال": "⚽", "لیگ": "⚽", "بازی": "⚽",
+              "کشتی": "🤼", "وزنه": "🏋️", "کاراته": "🥋", "تکواندو": "🥋", "موی‌تای": "🥊", "بوکس": "🥊",
+              "دوومیدانی": "🏃", "قایق": "🚣", "شنا": "🏊", "والیبال": "🏐", "بسکتبال": "🏀", "اسکیت": "🛹"}
+    for w, e in sports.items():
+        if w in text:
+            return e
+    return "⚡"
+
+
+def html_escape(s):
+    return (s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+
 def make_catchy_title(title):
+    """تیتر را به شکل درشت و جنجالی درمی‌آورد (با ایموجی و <b>)"""
     t = (title or "").strip()
     if not t:
         return ""
-    if t.endswith("؟") or t.endswith("?"):
-        return t
-    return t
+    t = re.sub(r"</?b>", "", t)
+    t = re.sub(r"\s+", " ", t)
+    emoji = title_emoji(t)
+    return "<b>%s %s</b>" % (emoji, html_escape(t))
+
+
+def split_sentences(text):
+    return [s.strip() for s in re.split(r"(?<=[\.!؟?؛])\s+", text) if s.strip()]
+
+
+def is_quote_sentence(s):
+    return any(k in s for k in ("«", "گفت:", "اظهار کرد", "خاطرنشان کرد", "بیان کرد",
+                                "عنوان کرد", "تاکید کرد", "یادآور شد", "افزود:"))
+
+
+def rewrite_body(paras, max_sentences=6):
+    """متن اصلی را به گزارش خلاصه و بازنویسی شده تبدیل می‌کند (نه کپی مستقیم)"""
+    result = []
+    if not paras:
+        return ""
+    # سطر اول: لید خبر (خلاصه اصلی) - حذف پیشوند خبرگزاری
+    lead = remove_isna(paras[0])
+    lead = re.sub(r"^\s*خوزستان\s*[-–]\s*", "", lead).strip()
+    if lead:
+        result.append(lead)
+    # بقیه: فقط جمله‌های غیر نقل‌قول (حقایق اصلی)
+    for p in paras[1:]:
+        p = remove_isna(p)
+        for s in split_sentences(p):
+            if len(result) >= max_sentences:
+                break
+            if is_quote_sentence(s):
+                continue
+            s = re.sub(r"«.*?»", "", s).strip()
+            s = re.sub(r"^[،،;\s]+", "", s)
+            if s and s not in result:
+                result.append(s)
+        if len(result) >= max_sentences:
+            break
+    if not result:
+        result = [remove_isna(paras[0])]
+    return " ".join(result)
 
 
 def build_report(item, article):
     title = make_catchy_title(article.get("title") or item["title"])
     paras = [p for p in (article.get("paras") or []) if p]
-    body_parts = []
-    for p in paras:
-        if len(body_parts) >= 4:
-            break
-        t = truncate_text(remove_isna(p))
-        if t and t not in body_parts:
-            body_parts.append(t)
-    if not body_parts:
-        body_parts = [remove_isna(item.get("desc") or "")]
-    body = "\n\n".join(body_parts)
+    body = rewrite_body(paras)
+    if not body:
+        body = remove_isna(item.get("desc") or "")
     report = (title + "\n\n" + body) if title else body
     report = remove_isna(report)
     lines = report.splitlines()
-    while len(lines) > MAX_CAPTION_LINES and body_parts:
-        body_parts.pop()
-        body = "\n\n".join(body_parts)
-        report = (title + "\n\n" + body) if title else body
-        report = remove_isna(report)
-        lines = report.splitlines()
+    if len(lines) > MAX_CAPTION_LINES:
+        # سطرهای اضافی را کوتاه کن
+        body_lines = body.splitlines()
+        while len(report.splitlines()) > MAX_CAPTION_LINES and len(body) > 40:
+            body = body[:body.rfind(" ")]
+            report = (title + "\n\n" + body) if title else body
+            report = remove_isna(report)
     return report
 
 
@@ -348,7 +406,7 @@ def send_photo(caption, img_path):
         r = request_with_retry(
             "POST",
             TG_BASE + "/sendPhoto",
-            data={"chat_id": CHANNEL_ID, "caption": caption},
+            data={"chat_id": CHANNEL_ID, "caption": caption, "parse_mode": "HTML"},
             files={"photo": ("news.jpg", f, "image/jpeg")},
             proxies=TG_PROXIES,
             timeout=60,
@@ -428,7 +486,7 @@ def process_telegram_commands():
 
 def send_plain(chat_id, text):
     try:
-        request_with_retry("GET", TG_BASE + "/sendMessage", params={"chat_id": chat_id, "text": text}, proxies=TG_PROXIES, timeout=25)
+        request_with_retry("GET", TG_BASE + "/sendMessage", params={"chat_id": chat_id, "text": text, "parse_mode": "HTML"}, proxies=TG_PROXIES, timeout=25)
     except Exception:
         pass
 
