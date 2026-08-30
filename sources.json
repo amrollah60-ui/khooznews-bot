@@ -22,7 +22,9 @@
       "type": "msy",
       "list_url": "https://khouzestan.msy.gov.ir/fa/index.php",
       "tab": "tab_239118_1",
-      "article_method": "http"
+      "article_method": "http",
+      "timeout": 15,
+      "max_retries": 1
     },
     {
       "name": "msy2",
@@ -30,7 +32,9 @@
       "type": "msy",
       "list_url": "https://khouzestan.msy.gov.ir/fa/index.php",
       "tab": "tab_239118_2",
-      "article_method": "http"
+      "article_method": "http",
+      "timeout": 15,
+      "max_retries": 1
     },
     {
       "name": "msy3",
@@ -38,7 +42,9 @@
       "type": "msy",
       "list_url": "https://khouzestan.msy.gov.ir/fa/index.php",
       "tab": "tab_239118_3",
-      "article_method": "http"
+      "article_method": "http",
+      "timeout": 15,
+      "max_retries": 1
     },
     {
       "name": "msy4",
@@ -46,7 +52,9 @@
       "type": "msy",
       "list_url": "https://khouzestan.msy.gov.ir/fa/index.php",
       "tab": "tab_239118_4",
-      "article_method": "http"
+      "article_method": "http",
+      "timeout": 15,
+      "max_retries": 1
     }
   ]
 }
