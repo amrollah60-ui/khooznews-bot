@@ -32,6 +32,7 @@ jobs:
         run: python khooznews_bot.py --once
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          GEMINI_KEY: ${{ secrets.GEMINI_KEY }}
 
       - name: Commit and push changes
         run: |
