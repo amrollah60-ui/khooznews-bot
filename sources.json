@@ -1,0 +1,20 @@
+{
+  "sources": [
+    {
+      "name": "isna",
+      "title": "ایسنا",
+      "type": "isna",
+      "list_url": "https://www.isna.ir/tag/اخبار ورزشی - خوزستان/rss",
+      "base_url": "https://www.isna.ir",
+      "article_method": "chrome"
+    },
+    {
+      "name": "khouznews",
+      "title": "خوزنیوز",
+      "type": "rss",
+      "list_url": "https://khouznews.ir/fa/rss/4",
+      "base_url": "https://khouznews.ir",
+      "article_method": "http"
+    }
+  ]
+}
