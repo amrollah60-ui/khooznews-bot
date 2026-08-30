@@ -1,2 +1,5 @@
 requests
 playwright
+pillow
+arabic-reshaper
+python-bidi
