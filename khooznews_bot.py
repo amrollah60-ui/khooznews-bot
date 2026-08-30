@@ -55,6 +55,8 @@ GEMINI_KEY = os.environ.get("GEMINI_KEY") or ""
 
 # تنظیمات کانال
 CHANNEL_NAME = os.environ.get("CHANNEL_NAME") or "ورزش خوزستان"
+# فقط منابع مشخصی پردازش شوند (جدا با کاما) - برای تقسیم کار بین گیت‌هاب و سرور لوکال
+ONLY_SOURCES = os.environ.get("ONLY_SOURCES") or ""
 
 HEADERS = {"User-Agent": USER_AGENT, "Accept-Language": "fa-IR,fa;q=0.9"}
 TG_PROXIES = {"http": TELEGRAM_PROXY, "https": TELEGRAM_PROXY} if TELEGRAM_PROXY else None
@@ -669,6 +671,9 @@ def main():
             # پردازش کامندهای تلگرام (افزودن خودکار منبع بدون نیاز به گیت‌هاب)
             process_telegram_commands()
             sources = load_sources()
+            if ONLY_SOURCES:
+                names = [n.strip() for n in ONLY_SOURCES.split(",") if n.strip()]
+                sources = [s for s in sources if s["name"] in names]
             log("تعداد منابع: " + str(len(sources)))
             sent = load_state()
             first_run = not sent
