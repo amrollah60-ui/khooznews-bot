@@ -433,10 +433,9 @@ def build_report(item, article):
     else:
         title = make_catchy_title(orig_title)
 
-    # ساختار نهایی: هدر آبی | تیتر | فاصله | متن | فاصله انتها
-    parts = [make_header()]
+    # ساختار نهایی: تیتر | فاصله | متن | فاصله انتها (هدر به صورت تصویر)
+    parts = []
     if title:
-        parts.append("")
         parts.append(title)
         parts.append("")
     parts.append(body)
@@ -447,9 +446,8 @@ def build_report(item, article):
     if len(lines) > MAX_CAPTION_LINES:
         while len(report.splitlines()) > MAX_CAPTION_LINES and len(body) > 40:
             body = body[:body.rfind(" ")]
-            parts = [make_header()]
+            parts = []
             if title:
-                parts.append("")
                 parts.append(title)
                 parts.append("")
             parts.append(body)
@@ -465,6 +463,63 @@ def download_image(url, dst):
     with open(dst, "wb") as f:
         f.write(r.content)
     return dst
+
+
+def make_post_image(news_img=None, dst=None):
+    """ساخت تصویر نهایی: کادر آبی تمام‌عرض با نام کانال + تصویر خبر (اگه موجود باشد)
+    چون کپشن تلگرام رنگ پس‌زمینه ندارد، هدر به‌صورت تصویر ساخته می‌شود."""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        import arabic_reshaper
+        from bidi.algorithm import get_display
+    except ImportError:
+        log("برای هدر تصویری نیاز به pillow/arabic-reshaper/python-bidi است")
+        return news_img
+
+    font_dir = os.path.join(BASE_DIR, "fonts")
+    header_font_path = os.path.join(font_dir, "header.ttf")
+    if not os.path.exists(header_font_path):
+        return news_img
+
+    W = 1080
+    HEADER_H = 170
+    BLUE = (20, 42, 90)          # آبی تیره
+    WHITE = (255, 255, 255)
+
+    bottom = None
+    if news_img and os.path.exists(news_img):
+        try:
+            bottom = Image.open(news_img).convert("RGB")
+            # مقیاس به عرض W
+            r = W / bottom.width
+            bottom = bottom.resize((W, int(bottom.height * r)))
+        except Exception as e:
+            log("خطا در باز کردن تصویر خبر: " + str(e))
+            bottom = None
+
+    H = HEADER_H + (bottom.height if bottom else 200)
+    canvas = Image.new("RGB", (W, H), (245, 245, 245))
+    draw = ImageDraw.Draw(canvas)
+
+    # کادر آبی تمام‌عرض
+    draw.rectangle([0, 0, W, HEADER_H], fill=BLUE)
+    try:
+        font = ImageFont.truetype(header_font_path, 56)
+        text = get_display(arabic_reshaper.reshape(CHANNEL_NAME))
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        x = (W - tw) // 2 - bbox[0]
+        y = (HEADER_H - th) // 2 - bbox[1]
+        draw.text((x, y), text, font=font, fill=WHITE)
+    except Exception as e:
+        log("خطا در رسم متن هدر: " + str(e))
+
+    if bottom:
+        canvas.paste(bottom, (0, HEADER_H))
+
+    out = dst or os.path.join(BASE_DIR, "tmp_post.jpg")
+    canvas.save(out, "JPEG", quality=88)
+    return out
 
 
 def send_photo(caption, img_path):
@@ -597,26 +652,32 @@ def process_source(source, sent, send=True):
         return sent
     new_items.sort(key=lambda it: int(it["id"]))
     fetcher = ARTICLE_FETCHERS.get(source.get("article_method", "http"))
-    tmp = os.path.join(BASE_DIR, "tmp_news.jpg")
+    tmp_news = os.path.join(BASE_DIR, "tmp_news.jpg")
+    tmp_post = os.path.join(BASE_DIR, "tmp_post.jpg")
     for it in new_items:
         try:
             log("[%s] خبر جدید: %s" % (name, it["title"]))
             article = fetcher(it["url"], it["title"], it.get("desc") or "")
             report = build_report(it, article)
-            img = it["img"] or article.get("img") or ""
             if send:
+                # دانلود تصویر خبر (اگر داشته باشد)
+                dl_img = None
+                img = it["img"] or article.get("img") or ""
                 if img:
                     try:
-                        download_image(img, tmp)
-                        send_photo(report, tmp)
+                        download_image(img, tmp_news)
+                        dl_img = tmp_news
                     except Exception as e:
-                        log("[%s] خطا در تصویر (ارسال بدون تصویر): %s" % (name, str(e)))
-                        send_plain(CHANNEL_ID, report)
+                        log("[%s] خطا در دانلود تصویر خبر: %s" % (name, str(e)))
+                # ساخت تصویر نهایی (هدر آبی + تصویر خبر)
+                post_img = make_post_image(news_img=dl_img, dst=tmp_post)
+                if post_img:
+                    send_photo(report, post_img)
                 else:
-                    send_plain(CHANNEL_ID, report)
+                    send_photo(report, dl_img) if dl_img else send_plain(CHANNEL_ID, report)
                 log("[%s] ارسال شد: %s" % (name, it["id"]))
             else:
-                log("[%s] DRY-RUN (بدون ارسال):\n%s\nIMG: %s" % (name, report, img))
+                log("[%s] DRY-RUN (بدون ارسال):\n%s" % (name, report))
             sent.append(name + ":" + it["id"])
             save_state(sent)
         except Exception as e:
