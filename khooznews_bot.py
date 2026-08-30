@@ -53,6 +53,9 @@ USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 # کلید API Gemini (برای بازنویسی هوشمند تیتر و متن)
 GEMINI_KEY = os.environ.get("GEMINI_KEY") or ""
 
+# تنظیمات کانال
+CHANNEL_NAME = os.environ.get("CHANNEL_NAME") or "ورزش خوزستان"
+
 HEADERS = {"User-Agent": USER_AGENT, "Accept-Language": "fa-IR,fa;q=0.9"}
 TG_PROXIES = {"http": TELEGRAM_PROXY, "https": TELEGRAM_PROXY} if TELEGRAM_PROXY else None
 TG_BASE = "https://api.telegram.org/bot" + TELEGRAM_TOKEN
@@ -305,22 +308,7 @@ def truncate_text(text, limit=MAX_PARA_LEN):
 
 
 def title_emoji(text):
-    """انتخاب ایموجی مناسب بر اساس محتوای خبر"""
-    neg = ["بحران", "شکست", "حسرت", "انتقاد", "غایب", "منحل", "ویرانی", "نگران", "خطر",
-           "درگیری", "حاشیه", "مصدم", "شکایت", "بحران‌زده", "عذرخواهی", "مشکل"]
-    pos = ["قهرمان", "مدال", "طلایی", "طلا", "پیروزی", "برد", "افتخار", "موفق", "درخشش", "نقره", "برنز"]
-    for w in neg:
-        if w in text:
-            return "🚨"
-    for w in pos:
-        if w in text:
-            return "🏆"
-    sports = {"فوتبال": "⚽", "فولاد": "⚽", "نفت": "⚽", "استقلال": "⚽", "لیگ": "⚽", "بازی": "⚽",
-              "کشتی": "🤼", "وزنه": "🏋️", "کاراته": "🥋", "تکواندو": "🥋", "موی‌تای": "🥊", "بوکس": "🥊",
-              "دوومیدانی": "🏃", "قایق": "🚣", "شنا": "🏊", "والیبال": "🏐", "بسکتبال": "🏀", "اسکیت": "🛹"}
-    for w, e in sports.items():
-        if w in text:
-            return e
+    """ایموجی عمومی برای تیتر (بدون توجه به نوع ورزش)"""
     return "⚡"
 
 
@@ -424,6 +412,12 @@ def gemini_rewrite(title, text):
         return None
 
 
+def make_header():
+    """هدر کادر آبی با نام کانال"""
+    bar = "🟦" * 18
+    return "%s\n<b>%s</b>\n%s" % (bar, html_escape(CHANNEL_NAME), bar)
+
+
 def build_report(item, article):
     orig_title = article.get("title") or item["title"]
     paras = [p for p in (article.get("paras") or []) if p]
@@ -439,13 +433,28 @@ def build_report(item, article):
     else:
         title = make_catchy_title(orig_title)
 
-    report = (title + "\n\n" + body) if title else body
+    # ساختار نهایی: هدر آبی | تیتر | فاصله | متن | فاصله انتها
+    parts = [make_header()]
+    if title:
+        parts.append("")
+        parts.append(title)
+        parts.append("")
+    parts.append(body)
+    parts.append("")
+    report = "\n".join(parts)
     report = remove_isna(report)
     lines = report.splitlines()
     if len(lines) > MAX_CAPTION_LINES:
         while len(report.splitlines()) > MAX_CAPTION_LINES and len(body) > 40:
             body = body[:body.rfind(" ")]
-            report = (title + "\n\n" + body) if title else body
+            parts = [make_header()]
+            if title:
+                parts.append("")
+                parts.append(title)
+                parts.append("")
+            parts.append(body)
+            parts.append("")
+            report = "\n".join(parts)
             report = remove_isna(report)
     return report
 
