@@ -55,6 +55,30 @@
       "article_method": "http",
       "timeout": 15,
       "max_retries": 1
+    },
+    {
+      "name": "khw",
+      "title": "هیأت کشتی خوزستان",
+      "type": "khw",
+      "list_url": "http://www.khwb.ir/",
+      "base_url": "http://www.khwb.ir",
+      "article_method": "http"
+    },
+    {
+      "name": "volleyball",
+      "title": "فدراسیون والیبال - خوزستان",
+      "type": "volleyball",
+      "list_url": "https://volleyball.ir/tag/%D8%AE%D9%88%D8%B2%D8%B3%D8%AA%D8%A7%D9%86/",
+      "base_url": "https://volleyball.ir",
+      "article_method": "http"
+    },
+    {
+      "name": "iranbbf",
+      "title": "فدراسیون بدنسازی - خوزستان",
+      "type": "iranbbf",
+      "list_url": "https://www.iranbbf.ir/News/Ostan?id=21",
+      "base_url": "https://www.iranbbf.ir",
+      "article_method": "http"
     }
   ]
 }
