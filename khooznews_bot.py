@@ -233,11 +233,77 @@ def parse_msy_items(html, cfg):
     return list(seen.values())
 
 
+def parse_khw_items(html, cfg):
+    """پارسر هیأت کشتی خوزستان (khwb.ir)"""
+    base = cfg.get("base_url", "http://www.khwb.ir")
+    items = []
+    seen = {}
+    for m in re.finditer(r'<a href="(http://www\.khwb\.ir/content/news/(\d+)/)"', html):
+        url, nid = m.group(1), m.group(2)
+        chunk = html[m.start():m.start() + 2000]
+        tm = re.search(r'<h[234][^>]*>\s*<a[^>]*>(.*?)</a>', chunk, re.S)
+        if not tm:
+            tm = re.search(r'alt="([^"]+)"', chunk)
+        if tm:
+            title = re.sub(r"<[^>]+>", "", tm.group(1)).strip()
+        else:
+            title = ""
+        if not title or nid in seen:
+            continue
+        im = re.search(r'<img src="([^"]+)"', chunk)
+        img = im.group(1) if im else ""
+        seen[nid] = {"id": nid, "title": title, "url": url, "img": img, "desc": title}
+    return list(seen.values())
+
+
+def parse_volleyball_items(html, cfg):
+    """پارسر والیبال ایران (volleyball.ir/tag/خوزستان) - وردپرس"""
+    items = []
+    seen = {}
+    for m in re.finditer(r'<h2><a href="(https://volleyball\.ir/[^"]+)">(.*?)</a></h2>', html, re.S):
+        url, title = m.group(1), re.sub(r"<[^>]+>", "", m.group(2)).strip()
+        if not title:
+            continue
+        nid = re.search(r"volleyball\.ir/(\d+)", url)
+        nid = nid.group(1) if nid else url.split("/")[-2][:20]
+        # تصویر
+        im = re.search(r'<a href="' + re.escape(url) + r'"><img[^>]*src="([^"]+)"', html[m.start() - 2000:m.start()])
+        img = im.group(1) if im else ""
+        if nid in seen:
+            continue
+        seen[nid] = {"id": nid, "title": title, "url": url, "img": img, "desc": title}
+    return list(seen.values())
+
+
+def parse_iranbbf_items(html, cfg):
+    """پارسر فدراسیون بدنسازی (iranbbf.ir/News/Ostan?id=21)"""
+    base = cfg.get("base_url", "https://www.iranbbf.ir")
+    items = []
+    seen = {}
+    for m in re.finditer(
+            r'<a href="/News/d\?id=(\d+)[^"]*">\s*<img[^>]*src="/www/photonews/([^"]+)"', html, re.S):
+        nid = m.group(1)
+        img = "https://www.iranbbf.ir/www/photonews/" + m.group(2)
+        # find title after this block
+        chunk = html[m.end():m.end() + 2000]
+        tm = re.search(r'<h2 class="post-title[^"]*">\s*<a href="/News/d\?id=' + re.escape(nid) + r'[^"]*"[^>]*>(.*?)</a>', chunk, re.S)
+        if not tm:
+            continue
+        title = re.sub(r"<[^>]+>", "", tm.group(1)).strip()
+        if not title or nid in seen:
+            continue
+        seen[nid] = {"id": nid, "title": title, "url": base + "/News/d?id=" + nid, "img": img, "desc": title}
+    return list(seen.values())
+
+
 PARSERS = {
     "isna": parse_isna_items,
     "khouznews": parse_khouznews_items,
     "rss": parse_rss_items,
     "msy": parse_msy_items,
+    "khw": parse_khw_items,
+    "volleyball": parse_volleyball_items,
+    "iranbbf": parse_iranbbf_items,
 }
 
 
