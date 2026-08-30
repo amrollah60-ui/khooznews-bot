@@ -632,12 +632,16 @@ def gemini_rewrite(title, text):
         return None
 
 
-def build_report(item, article):
+def build_report(item, article, keep_full=False):
     orig_title = article.get("title") or item["title"]
     paras = [p for p in (article.get("paras") or []) if p]
-    body = rewrite_body(paras)
-    if not body:
-        body = remove_isna(item.get("desc") or "")
+    if keep_full:
+        # متن کامل را بدون خلاصه‌سازی نگه دار (مناسب کانال‌های تلگرام)
+        body = " ".join(remove_isna(p) for p in paras) if paras else remove_isna(item.get("desc") or "")
+    else:
+        body = rewrite_body(paras)
+        if not body:
+            body = remove_isna(item.get("desc") or "")
 
     # بازنویسی با هوش مصنوعی (اگر کلید Gemini موجود باشد)
     ai = gemini_rewrite(orig_title, body) if GEMINI_KEY else None
@@ -821,9 +825,18 @@ def process_source(source, sent, send=True):
             # برای کانال تلگرام، متن خود پیام همان خبر است (نیازی به صفحه مقاله نیست)
             if source.get("type") == "tg_channel" and it.get("desc"):
                 article = {"title": it["title"], "paras": [it["desc"]], "img": it.get("img", "")}
+                keep_full = True
             else:
                 article = fetcher(it["url"], it["title"], it.get("desc") or "")
-            report = build_report(it, article)
+                keep_full = False
+            body_len = len(it.get("desc") or "")
+            # خبرهای خیلی کوتاه (۱-۲ خط) ارسال نکن
+            if body_len < 40:
+                log("[%s] خبر خیلی کوتاه است، رد شد: %s" % (name, it["title"][:50]))
+                sent.append(name + ":" + it["id"])
+                save_state(sent)
+                continue
+            report = build_report(it, article, keep_full=keep_full)
             if send:
                 # دانلود تصویر خبر (اگر داشته باشد)
                 dl_img = None
