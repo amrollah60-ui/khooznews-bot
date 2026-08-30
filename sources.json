@@ -95,6 +95,15 @@
       "list_url": "https://footballi.net/news/tag/%D9%87%DB%8C%D8%A6%D8%AA-%D9%81%D9%88%D8%AA%D8%A8%D8%A7%D9%84-%D8%AE%D9%88%D8%B2%D8%B3%D8%AA%D8%A7%D9%86",
       "base_url": "https://footballi.net",
       "article_method": "http"
+    },
+    {
+      "name": "nidc",
+      "title": "ملی حفاری",
+      "type": "tg_channel",
+      "list_url": "https://t.me/s/nidcclub",
+      "channel": "nidcclub",
+      "article_method": "http",
+      "use_tg_proxy": true
     }
   ]
 }
