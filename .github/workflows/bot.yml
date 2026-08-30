@@ -11,10 +11,10 @@ permissions:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       TELEGRAM_PROXY: ''
-      ONLY_SOURCES: 'isna,khouznews'
+      ONLY_SOURCES: 'isna,khouznews,khw,volleyball,iranbbf'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
