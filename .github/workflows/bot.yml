@@ -38,5 +38,10 @@ jobs:
           git config user.name "khooznews-bot"
           git config user.email "actions@github.com"
           git add -A
-          git diff --cached --quiet || git commit -m "auto: update bot state and config"
+          if git diff --cached --quiet; then
+            echo "no changes to commit"
+          else
+            git commit -m "auto: update bot state and config"
+          fi
+          git pull --rebase origin main || true
           git push
