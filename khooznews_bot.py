@@ -296,6 +296,25 @@ def parse_iranbbf_items(html, cfg):
     return list(seen.values())
 
 
+def parse_footballi_items(html, cfg):
+    """پارسر فوتبالی (footballi.net) - هیئت فوتبال خوزستان"""
+    base = cfg.get("base_url", "https://footballi.net")
+    items = []
+    seen = {}
+    for m in re.finditer(r'<a[^>]*class="one-news"[^>]*href="(/news/r/(\d+)/[^"]*)"[^>]*>', html):
+        url, nid = m.group(1), m.group(2)
+        chunk = html[m.start():m.start() + 2000]
+        im = re.search(r'<img[^>]*alt="([^"]*)"[^>]*src="(https://cdn\.oddrun\.ir/[^"]+)"', chunk)
+        if not im:
+            continue
+        title = im.group(1).strip()
+        img = im.group(2)
+        if not title or nid in seen:
+            continue
+        seen[nid] = {"id": nid, "title": title, "url": base + url, "img": img, "desc": title}
+    return list(seen.values())
+
+
 PARSERS = {
     "isna": parse_isna_items,
     "khouznews": parse_khouznews_items,
@@ -304,6 +323,7 @@ PARSERS = {
     "khw": parse_khw_items,
     "volleyball": parse_volleyball_items,
     "iranbbf": parse_iranbbf_items,
+    "footballi": parse_footballi_items,
 }
 
 
