@@ -15,6 +15,38 @@
       "list_url": "https://khouznews.ir/fa/rss/4",
       "base_url": "https://khouznews.ir",
       "article_method": "http"
+    },
+    {
+      "name": "msy1",
+      "title": "ورزش و جوانان خوزستان",
+      "type": "msy",
+      "list_url": "https://khouzestan.msy.gov.ir/fa/index.php",
+      "tab": "tab_239118_1",
+      "article_method": "http"
+    },
+    {
+      "name": "msy2",
+      "title": "ورزش و جوانان خوزستان",
+      "type": "msy",
+      "list_url": "https://khouzestan.msy.gov.ir/fa/index.php",
+      "tab": "tab_239118_2",
+      "article_method": "http"
+    },
+    {
+      "name": "msy3",
+      "title": "ورزش و جوانان خوزستان",
+      "type": "msy",
+      "list_url": "https://khouzestan.msy.gov.ir/fa/index.php",
+      "tab": "tab_239118_3",
+      "article_method": "http"
+    },
+    {
+      "name": "msy4",
+      "title": "ورزش و جوانان خوزستان",
+      "type": "msy",
+      "list_url": "https://khouzestan.msy.gov.ir/fa/index.php",
+      "tab": "tab_239118_4",
+      "article_method": "http"
     }
   ]
 }
