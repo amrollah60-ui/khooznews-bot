@@ -618,8 +618,8 @@ def build_report(item, article):
     return report
 
 
-def download_image(url, dst):
-    r = request_with_retry("GET", url, headers=HEADERS, timeout=30)
+def download_image(url, dst, proxies=None):
+    r = request_with_retry("GET", url, headers=HEADERS, timeout=30, proxies=proxies)
     r.raise_for_status()
     with open(dst, "wb") as f:
         f.write(r.content)
@@ -765,7 +765,11 @@ def process_source(source, sent, send=True):
     for it in new_items:
         try:
             log("[%s] خبر جدید: %s" % (name, it["title"]))
-            article = fetcher(it["url"], it["title"], it.get("desc") or "")
+            # برای کانال تلگرام، متن خود پیام همان خبر است (نیازی به صفحه مقاله نیست)
+            if source.get("type") == "tg_channel" and it.get("desc"):
+                article = {"title": it["title"], "paras": [it["desc"]], "img": it.get("img", "")}
+            else:
+                article = fetcher(it["url"], it["title"], it.get("desc") or "")
             report = build_report(it, article)
             if send:
                 # دانلود تصویر خبر (اگر داشته باشد)
@@ -773,7 +777,7 @@ def process_source(source, sent, send=True):
                 img = it["img"] or article.get("img") or ""
                 if img:
                     try:
-                        download_image(img, tmp_news)
+                        download_image(img, tmp_news, proxies=proxies)
                         dl_img = tmp_news
                     except Exception as e:
                         log("[%s] خطا در دانلود تصویر خبر: %s" % (name, str(e)))
