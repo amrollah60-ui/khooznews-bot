@@ -37,8 +37,8 @@ SOURCES_FILE = os.environ.get("SOURCES_FILE") or os.path.join(BASE_DIR, "sources
 STATE_FILE = os.environ.get("STATE_FILE") or os.path.join(BASE_DIR, "sent_news.json")
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL") or 300)   # ثانیه - فاصله بین هر چک در حالت عادی
 OFFLINE_INTERVAL = 30                            # ثانیه - فاصله چک مجدد وقتی اینترنت قطع است
-MAX_RETRIES = 5                                  # تعداد تلاش مجدد برای هر درخواست شبکه
-RETRY_BASE_DELAY = 5                             # ثانیه - شروع فاصله بین تلاش‌ها (ضربدر ۲ می‌شود)
+MAX_RETRIES = 3                                  # تعداد تلاش مجدد برای هر درخواست شبکه
+RETRY_BASE_DELAY = 3                             # ثانیه - شروع فاصله بین تلاش‌ها (ضربدر ۲ می‌شود)
 # پروکسی تلگرام: روی سرور لوکال لازم است؛ روی GitHub با TELEGRAM_PROXY="" غیرفعال می‌شود
 _raw_proxy = os.environ.get("TELEGRAM_PROXY")
 if _raw_proxy == "":
@@ -614,7 +614,9 @@ def process_source(source, sent, send=True):
     if parser is None:
         log("منبع ناشناخته: " + name)
         return sent
-    html = request_with_retry("GET", source["list_url"], headers=HEADERS, timeout=30)
+    timeout = source.get("timeout", 30)
+    max_retries = source.get("max_retries", MAX_RETRIES)
+    html = request_with_retry("GET", source["list_url"], headers=HEADERS, timeout=timeout, max_retries=max_retries)
     html.raise_for_status()
     items = parser(html.text, source)
     log("[%s] تعداد اخبار: %d" % (name, len(items)))
