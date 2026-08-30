@@ -228,7 +228,7 @@ def fetch_article_chrome(url, fallback_title="", fallback_desc=""):
                 pass
             data = page.evaluate(
                 "() => {"
-                "  let title = document.title.replace(/\u0020-\u0020\u0627\u06cc\u0633\u0646\u0627\s*$/, '').trim();"
+                "  let title = document.title.replace(/\\u0020-\\u0020\\u0627\\u06cc\\u0633\\u0646\\u0627\\s*$/, '').trim();"
                 "  if (!title) { const h1 = document.querySelector('h1'); title = h1 ? h1.innerText.trim() : ''; }"
                 "  const art = document.querySelector('article') || document.body;"
                 "  const paras = [];"
