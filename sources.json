@@ -104,6 +104,30 @@
       "channel": "nidcclub",
       "article_method": "http",
       "use_tg_proxy": true
+    },
+    {
+      "name": "est_khz",
+      "title": "استقلال خوزستان",
+      "type": "est_khz",
+      "list_url": "https://esteghlalkhuzestanfc.com/",
+      "base_url": "https://esteghlalkhuzestanfc.com",
+      "article_method": "http"
+    },
+    {
+      "name": "foolad",
+      "title": "فولاد خوزستان",
+      "type": "foolad",
+      "list_url": "http://www.fooladfc.ir/Fa/News",
+      "base_url": "http://www.fooladfc.ir",
+      "article_method": "http"
+    },
+    {
+      "name": "naftmis",
+      "title": "نفت مسجدسلیمان",
+      "type": "naftmis",
+      "list_url": "https://naftmisfc.ir/",
+      "base_url": "https://naftmisfc.ir",
+      "article_method": "http"
     }
   ]
 }
