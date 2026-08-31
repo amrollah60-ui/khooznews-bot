@@ -367,6 +367,53 @@ def clean_tg_text(text):
     return text.strip()
 
 
+def parse_est_khz_items(html, cfg):
+    """پارسر استقلال خوزستان (esteghlalkhuzestanfc.com) - وردپرس"""
+    items = []
+    seen = {}
+    for m in re.finditer(r'<h2 class="elementor-heading-title elementor-size-default"><a href="([^"]+)">(.*?)</a></h2>', html, re.S):
+        url = m.group(1)
+        title = re.sub(r"<[^>]+>", "", m.group(2)).strip()
+        if not title or url in seen:
+            continue
+        before = html[max(0, m.start() - 3000):m.start()]
+        im = re.search(r'<img[^>]*src="([^"]+)"', before)
+        img = im.group(1) if im else ""
+        nid = re.sub(r"[^0-9]", "", url)[:20] or url
+        seen[url] = {"id": nid, "title": title, "url": url, "img": img, "desc": title}
+    return list(seen.values())
+
+
+def parse_foolad_items(html, cfg):
+    """پارسر فولاد خوزستان (fooladfc.ir)"""
+    base = cfg.get("base_url", "http://www.fooladfc.ir")
+    items = []
+    seen = {}
+    for m in re.finditer(
+            r'<div class="news-box-item">.*?<img src="([^"]+)"[^>]*alt="([^"]*)"[^>]*>.*?<a[^>]*href="/Fa/news-details/(\d+)/[^"]*"[^>]*>(.*?)</a>.*?<div class="text-box-news">(.*?)</div>',
+            html, re.S):
+        img, alt, nid, title, desc = m.group(1), m.group(2), m.group(3), re.sub(r"<[^>]+>", "", m.group(4)).strip(), re.sub(r"<[^>]+>", "", m.group(5)).strip()
+        if nid in seen:
+            continue
+        seen[nid] = {"id": nid, "title": title or alt,
+                     "url": base + "/Fa/news-details/" + nid,
+                     "img": base + img if img.startswith("/") else img, "desc": desc or title}
+    return list(seen.values())
+
+
+def parse_naftmis_items(html, cfg):
+    """پارسر نفت مسجدسلیمان (naftmisfc.ir) - وردپرس"""
+    items = []
+    seen = {}
+    for m in re.finditer(r'<a[^>]*href="(https://naftmisc?\.ir/\?p=(\d+)[^"]*)"[^>]*>(.*?)</a>', html, re.S):
+        url, nid = m.group(1), m.group(2)
+        title = re.sub(r"<[^>]+>", "", m.group(3)).strip()
+        if len(title) < 10 or nid in seen:
+            continue
+        seen[nid] = {"id": nid, "title": title, "url": url, "img": "", "desc": title}
+    return list(seen.values())
+
+
 def parse_tg_channel_items(html, cfg):
     """پارسر کانال تلگرام از طریق نمایش وب عمومی (t.me/s/...)"""
     ch = cfg.get("channel", "")
@@ -383,7 +430,10 @@ def parse_tg_channel_items(html, cfg):
         text = clean_tg_text(text)
         if not text:
             continue
-        im = re.search(r'<img[^>]*src="(https://cdn[^"]+)"', part)
+        # عکس خبر: فقط عکس خودِ پیام (نه آواتار کانال)
+        # آواتار کانال در بخش tgme_widget_message_user است - اون بخش را حذف کن
+        body_part = re.sub(r'<div class="tgme_widget_message_user.*?</div>', "", part, flags=re.S)
+        im = re.search(r'<img[^>]*src="(https://cdn[^"]+)"', body_part)
         img = im.group(1) if im else ""
         title = text[:80]
         if nid in seen:
@@ -407,6 +457,9 @@ PARSERS = {
     "iranbbf": parse_iranbbf_items,
     "footballi": parse_footballi_items,
     "tg_channel": parse_tg_channel_items,
+    "est_khz": parse_est_khz_items,
+    "foolad": parse_foolad_items,
+    "naftmis": parse_naftmis_items,
 }
 
 
